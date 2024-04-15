@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import random
 from functools import reduce
+from copy import deepcopy
 
 # Imports
 import torch.nn as nn
@@ -170,12 +171,8 @@ class DQN:
 
     def reset(self):
 
-        obs_size = product(self.observation_space.shape)
-        n_actions = self.action_space.n
-
         self.buffer = ReplayBuffer(self.buffer_capacity)
-        self.q_net = Net(obs_size, self.net_arch, n_actions).to(self.device)
-        self.target_net = Net(obs_size, self.net_arch, n_actions).to(self.device)
+        self.build_nets()
 
         self.loss_function = nn.MSELoss()
         self.optimizer = optim.Adam(
@@ -185,6 +182,16 @@ class DQN:
         self.epsilon = self.epsilon_start
         self.n_steps = 0
         self.n_eps = 0
+
+    def build_nets(self):
+        if hasattr(self.net_arch, "__iter__"):
+            obs_size = product(self.observation_space.shape)
+            n_actions = self.action_space.n
+            self.q_net = Net(obs_size, self.net_arch, n_actions).to(self.device)
+            self.target_net = Net(obs_size, self.net_arch, n_actions).to(self.device)
+        else:
+            self.q_net = deepcopy(self.net_arch).to(self.device)
+            self.target_net = deepcopy(self.net_arch).to(self.device)
 
     def get_q(self, state):
         """
@@ -198,6 +205,14 @@ class DQN:
         with torch.no_grad():
             output = self.q_net.forward(state_tensor)  # shape (1,  n_actions)
         return output.cpu().numpy()[0]  # shape  (n_actions)
+
+    def save(self, path):
+        torch.save(self.q_net.state_dict(), path)
+
+    def load(self, path):
+        self.q_net.load_state_dict(torch.load(path))
+        self.target_net.load_state_dict(torch.load(path))
+        self.q_net.eval()
 
 
 def product(iterable):
