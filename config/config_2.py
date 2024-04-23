@@ -18,7 +18,7 @@ config = {
         "flatten": False,
         "observe_intentions": False,
     },
-    "action": {"type": "DiscreteMetaAction", "longitudinal": False, "lateral": True},
+    "action": {"type": "ContinuousAction", "longitudinal": False, "lateral": True},
     "duration": 13,  # [s]
     "destination": "o1",
     "initial_vehicle_count": 10,
