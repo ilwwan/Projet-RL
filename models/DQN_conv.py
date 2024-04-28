@@ -1,57 +1,45 @@
 import torch
-import numpy as np
-import random
-from functools import reduce
-from copy import deepcopy
-
-# Imports
 import torch.nn as nn
 import torch.optim as optim
-
-# import os
-# os.environ["SDL_VIDEODRIVER"] = "dummy"
-# from IPython.display import clear_output
-
-
-class ReplayBuffer:
-    def __init__(self, capacity):
-        self.capacity = capacity
-        self.memory = []
-        self.position = 0
-
-    def push(self, state, action, reward, terminated, next_state):
-        """Saves a transition."""
-        if len(self.memory) < self.capacity:
-            self.memory.append(None)
-        self.memory[self.position] = (state, action, reward, terminated, next_state)
-        self.position = (self.position + 1) % self.capacity
-
-    def sample(self, batch_size):
-        return random.choices(self.memory, k=batch_size)
-
-    def __len__(self):
-        return len(self.memory)
+from models.DQN import ReplayBuffer
+import numpy as np
+from copy import deepcopy
 
 
-class Net(nn.Module):
-    """
-    Basic neural net.
-    """
+class CNNet(nn.Module):
+    def __init__(self, observation_shape, hidden_size, num_actions):
+        super(CNNet, self).__init__()
 
-    def __init__(self, obs_size, net_arch, n_actions):
-        super(Net, self).__init__()
-        layers = []
-        prev_size = obs_size
-        for hidden_size in net_arch:
-            layers.append(nn.Linear(prev_size, hidden_size))
-            layers.append(nn.ReLU())
-            prev_size = hidden_size
-        self.net = nn.Sequential(*layers[:-1], nn.Linear(prev_size, n_actions))
+        self.conv_layers = nn.Sequential(
+            nn.Conv2d(observation_shape[0], 32, kernel_size=3),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=3),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3),
+            nn.ReLU(),
+        )
+
+        self.fc_layers = nn.Sequential(
+            nn.Linear(self.calculate_conv_output_size(observation_shape), hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, 64),
+            nn.ReLU(),
+            nn.Linear(64, num_actions),
+        )
 
     def forward(self, x):
-        if len(x.shape) > 2:
-            x = x.view(x.size(0), -1)
-        return self.net(x)
+        x = self.conv_layers(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc_layers(x)
+        return x
+
+    def calculate_conv_output_size(self, observation_shape):
+        conv_input = torch.zeros(1, *observation_shape)
+        # Get the output of the convolutional layers
+        conv_output = self.conv_layers(conv_input)
+        # Calculate the size of the output for a single sample
+        conv_output_size = conv_output.view(conv_output.size(0), -1).size(1)
+        return conv_output_size
 
 
 class DQN:
@@ -67,7 +55,7 @@ class DQN:
         decrease_epsilon_factor,
         epsilon_min,
         learning_rate,
-        net_arch,
+        hidden_size,
     ):
         # Check if CUDA is available
         if torch.cuda.is_available():
@@ -82,6 +70,7 @@ class DQN:
         self.batch_size = batch_size
         self.buffer_capacity = buffer_capacity
         self.update_target_every = update_target_every
+        self.hidden_size = hidden_size
 
         self.epsilon_start = epsilon_start
         self.decrease_epsilon_factor = (
@@ -90,7 +79,6 @@ class DQN:
         self.epsilon_min = epsilon_min
 
         self.learning_rate = learning_rate
-        self.net_arch = net_arch
 
         self.reset()
 
@@ -184,23 +172,19 @@ class DQN:
         self.n_eps = 0
 
     def build_nets(self):
-        if hasattr(self.net_arch, "__iter__"):
-            obs_size = product(self.observation_space.shape)
-            n_actions = self.action_space.n
-            self.q_net = Net(obs_size, self.net_arch, n_actions).to(self.device)
-            self.target_net = Net(obs_size, self.net_arch, n_actions).to(self.device)
-        else:
-            self.q_net = deepcopy(self.net_arch).to(self.device)
-            self.target_net = deepcopy(self.net_arch).to(self.device)
+        self.q_net = CNNet(
+            self.observation_space.shape, self.hidden_size, self.action_space.n
+        ).to(self.device)
+        self.target_net = CNNet(
+            self.observation_space.shape, self.hidden_size, self.action_space.n
+        ).to(self.device)
 
     def get_q(self, state):
         """
         Compute Q function for a states
         """
         state_tensor = (
-            torch.tensor(state.flatten(), dtype=torch.float32)
-            .unsqueeze(0)
-            .to(self.device)
+            torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(self.device)
         )
         with torch.no_grad():
             output = self.q_net.forward(state_tensor)  # shape (1,  n_actions)
@@ -213,7 +197,3 @@ class DQN:
         self.q_net.load_state_dict(torch.load(path))
         self.target_net.load_state_dict(torch.load(path))
         self.q_net.eval()
-
-
-def product(iterable):
-    return reduce((lambda x, y: x * y), iterable, 1)

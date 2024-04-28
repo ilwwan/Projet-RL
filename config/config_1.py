@@ -25,17 +25,16 @@ config = {
     "duration": 20,  # [s]
     "initial_spacing": 0,
     "collision_reward": -1,  # The reward received when colliding with a vehicle.
-    "right_lane_reward": 0.5,  # The reward received when driving on the right-most lanes,
-    # linearly mapped to zero for other lanes.
-    "high_speed_reward": 0.1,  # The reward received when driving at full speed,
-    # linearly mapped to zero for lower speeds according to config["reward_speed_range"].
+    "right_lane_reward": 0.5,  # The reward received when driving on the right-most lanes, linearly mapped to
+    # zero for other lanes.
+    "high_speed_reward": 0.1,  # The reward received when driving at full speed, linearly mapped to zero for
+    # lower speeds according to config["reward_speed_range"].
     "lane_change_reward": 0,
     "reward_speed_range": [
         20,
         30,
-    ],  # [m/s] The reward for high speed is mapped linearly from this range to
-    # [0, HighwayEnv.HIGH_SPEED_REWARD].
-    "simulation_frequency": 24,  # [Hz]
+    ],  # [m/s] The reward for high speed is mapped linearly from this range to [0, HighwayEnv.HIGH_SPEED_REWARD].
+    "simulation_frequency": 5,  # [Hz]
     "policy_frequency": 1,  # [Hz]
     "other_vehicles_type": "highway_env.vehicle.behavior.IDMVehicle",
     "screen_width": 600,  # [px]
@@ -47,7 +46,6 @@ config = {
     "offscreen_rendering": False,
     "disable_collision_checks": True,
 }
-
 
 env.unwrapped.configure(config)
 
